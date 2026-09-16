@@ -185,5 +185,105 @@ Dari node Knights, mencoba masuk ke server ftp menggunakan akun Alice.
 ```
 lftp -u alice,alice 192.218.2.2
 ```
-setelah berhasil login, mencoba mengirim file `secret.txt` sebagai dokumen rahasia dengan menggunakan `put`:
-![Berhasil login ke akun Alice menggunakan node Knights dan berhasil mengirim dokumen rahasia](src/soal_8-berhasil-login-dan-put.png)
+setelah berhasil login, mencoba mengirim file `knights_report.txt` sebagai dokumen rahasia dengan menggunakan `put`:
+![Berhasil login ke akun Alice menggunakan node Knights dan berhasil mengirim dokumen rahasia](src/soal_8-berhasil-login-dan-put-file.png)
+
+#### Analisis 
+1. Port data TCP pada mode PASV:
+
+Sebelum mengirim data file, klien meminta server untuk memasuki mode pasif dengan mengirimkan flag `PASV`. Server menyetujuinya dan membalas dengan `227 Entering Passive Mode (192,218,2,2,152,51)..`
+![port](src/soal_8-wireshark.png) <br>
+Respons ini memberikan informasi IP server dan port acak yang dibukanya untuk menerima data. Port data TCP dihitung dari dua angka terakhir (205 dan 86) dengan menggunakan perhitungan berikut:
+$Port = (x \times 256) + y$ <br>
+$Port = (152 \times 256) + 51$ <br>
+$Port = 38963$ <br>
+Dengan demikian, negosiasi berhasil dan transfer data dilakukan melalui jalur TCP port 38963.
+
+2. Perintah Upload FTP (STOR):
+
+Setelah jalur koneksi data terbuka, klien (Knights) menginstruksikan server untuk bersiap menyimpan file dengan mengirimkan perintah `STOR knights_report.txt`. Perintah `STOR` (Store) ini adalah terjemahan dari perintah dasar `put` yang dieksekusi oleh pengguna. <br>
+![store](src/soal_8-wireshark.png)
+
+3. Kode Status Sukses Server (226):
+
+Server Chisa memberikan izin aliran data dengan pesan `150 Ok to send data`. Setelah isi dari dokumen `secret.txt` selesai ditransfer seluruhnya melalui port pasif, server mengonfirmasi penyelesaian tugas tersebut dengan mengirimkan kode status `226 Transfer complete..` Kode ini adalah indikator final bahwa server telah menutup koneksi data karena proses unggah file sukses 100% tanpa ada paket yang corrupt.  
+![server chisa menerima data](src/soal_8-wireshark.png)
+
+### Soal 9 - Satrio
+> Mika mengakses dokumen Protokol Tujuh di (link file) dari FTP Server Chisa. Dari node Mika, unduh file tersebut menggunakan akun mika. Setelah itu, buktikan pembatasan read-only dengan mencoba mengunggah file baru dari akun mika, dan tunjukkan pesan error respon server (error 550 Permission denied) saat mika mencoba melakukan upload.
+
+Untuk memulai, pada console Chisa (server FTP) harus diupload terlebih dahulu file `protocol7_manifesto.txt` dan memastikan file tersebut bisa dibaca oleh client lain dengan menggunakan:
+```
+chmod 755 /var/wired/data/protocol7_manifesto.txt
+```
+chmod 755 berfungsi untuk memberikan izin baca dan execute untuk grup atau user lain.
+
+Lalu dari node Mika, mencoba mendownload file `protocol7_manifesto.txt` yang ada di FTP server, dan mencoba untuk mengunggah file `test.txt` yang nantinya akan ditolak oleh server karena Mika tidak punya izin untuk WRITE.
+![Node mika ke server](src/soal_9-node-mika.png)
+
+### Soal 10 - Satrio
+> Knights melancarkan uji ketahanan koneksi ke server Chisa untuk menguji latensi jaringan The Wired. Kirimkan paket ping dari node Knights ke node Chisa dengan payload khusus 128 bytes dan interval 0.3 detik sebanyak 77 paket (ping -c 77 -s 128 -i 0.3 <IP_Chisa>). Buka Wireshark, catat nilai ICMP Type dan Code untuk Echo Request vs Echo Reply, serta analisis packet loss dan RTT (min/avg/max).
+
+Sebelum melakukan `ping`, harus disiapkan dulu capture untuk node Knights ke Router3 dan start capture untuk membuka wireshark.
+
+Lalu pada console Knights, mengeksekusi perintah:
+```
+ping -c 77 -s 128 -i 0.3 192.218.2.2
+```
+![Knights mencoba ping Chisa](src/soal_10-test-ping-knights.png)
+![hasil ping](src/soal_10-hasil-ping.png)
+
+#### Analisis Packet Loss dan RTT
+Berdasarkan ringkasan statistik dari terminal saat perintah ping selesai dieksekusi, didapatkan hasil sebagai berikut:
+
+Packet Loss: Dari total 77 paket yang dikirimkan (transmitted), 77 paket berhasil diterima (received) oleh server. Hal ini menghasilkan 0% packet loss, yang menunjukkan bahwa koneksi jaringan The Wired sangat stabil dan tidak ada paket yang drop di tengah jalan.
+
+RTT (min/avg/max): Waktu tempuh bolak-balik paket (latensi) tercatat sangat baik. Nilai latensi terendah (min) adalah 0.367 ms, rata-rata latensi (avg) berada di angka 0.692 ms, dan latensi tertingginya (max) hanya menyentuh 1.008 ms.
+
+#### Analisis Wireshark
+Hasil melakukan Wireshark:
+![hasil melakukan wireshark](src/soal_10-hasil-wireshark.png)
+
+Melalui pengamatan detail paket pada Wireshark dengan filter icmp, tercatat interaksi request-reply yang merepresentasikan perintah ping tersebut.<br>
+Berdasarkan header Internet Control Message Protocol, terdapat dua jenis pesan utama: <br>
+![Nilai ping request dari Knights ke Chisa](src/soal_10-ping-request.png) <br>
+Echo Request (Knights $\rightarrow$ Chisa): Paket yang berisi permintaan dari klien ini membawa nilai Type: 8 dan Code: 0. <br>
+![Nilai ping reply dari Chisa ke Knights](src/soal_10-ping-reply.png)
+Echo Reply (Chisa $\rightarrow$ Knights): Paket balasan dari server merespons dengan nilai Type: 0 dan Code: 0.<br>
+
+### Soal 11 - Satrio
+> Buktikan kelemahan protokol Telnet dengan membuat akun phantom_user dan password wired_ghost pada layanan telnetd di node Chisa. Lakukan login Telnet dari node Eiri ke node Chisa dan tangkap sesi menggunakan Wireshark. Tunjukkan kredensial plain text melalui fitur Follow TCP Stream, serta jelaskan mengapa setiap karakter terkirim dalam paket TCP terpisah.
+
+Menyiapkan dahulu akun `phantom_user` dengan script yang saya tulis di file `setup_telnet.sh` dan dieksekusi:
+```
+#!/bin/bash
+apk update
+apk add busybox-extras
+
+=adduser -D phantom_user 2>/dev/null
+
+echo "phantom_user:wired_ghost" | chpasswd
+
+killall telnetd 2>/dev/null
+telnetd
+
+echo "Telnet Server sudah menyala dan siap menerima koneksi!"
+```
+![sript dieksekusi di node Chisa](src/soal_11-script-ecexuted.png)
+
+Setelah itu, mulai capturing dari Node Eiri ke switch3.
+
+Dari node Eiri, melakukan perintah:
+```
+telnet 192.218.2.2
+```
+Untuk menyambungkan ke server, dan masukkan login dengan user `phantom_user` dengan password `wired_ghost`:
+![Berhasil login ke akun Chisa menggunakan console Eiri](src/soal_11-eiri-berhasil-login-chisa.png)
+
+Setelah itu melakukan analisis di wireshark dengan memilih salah satu package telnet yang terekam lalu `right click`, pilih `follow` $\rightarrow$ `TCP Stream`. Disana terdapat informasi login dan password yang tidak terenkripsi sama sekali (berupa plain text):
+![user dan password terlihat](src/soal_11-password-and-user-shown.png)
+
+### Soal 12 - Satrio
+>Alice mencurigai Knights menjalankan beberapa layanan rahasia di node-nya. Lakukan pemindaian port dari node Alice ke node Knights menggunakan Netcat (nc) untuk memeriksa port 22 (SSH) dan 80 (HTTP) dalam keadaan terbuka, serta port rahasia 7777 dalam keadaan tertutup. Analisis di Wireshark perbedaan TCP Flag yang dikembalikan antara port terbuka (SYN-ACK) dengan port tertutup (RST-ACK).
+
+Setup capture dari node Alice, lalu menambahkan filter pada wireshark `tcp.port == 22 || tcp.port == 80 || tcp.port == 7777`.
