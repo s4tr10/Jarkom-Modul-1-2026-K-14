@@ -286,4 +286,92 @@ Setelah itu melakukan analisis di wireshark dengan memilih salah satu package te
 ### Soal 12 - Satrio
 >Alice mencurigai Knights menjalankan beberapa layanan rahasia di node-nya. Lakukan pemindaian port dari node Alice ke node Knights menggunakan Netcat (nc) untuk memeriksa port 22 (SSH) dan 80 (HTTP) dalam keadaan terbuka, serta port rahasia 7777 dalam keadaan tertutup. Analisis di Wireshark perbedaan TCP Flag yang dikembalikan antara port terbuka (SYN-ACK) dengan port tertutup (RST-ACK).
 
-Setup capture dari node Alice, lalu menambahkan filter pada wireshark `tcp.port == 22 || tcp.port == 80 || tcp.port == 7777`.
+Setup start capture dari node Alice, lalu menambahkan filter pada wireshark `tcp.port == 22 || tcp.port == 80 || tcp.port == 7777`.
+![Filter wireshark](src/soal_12-filter-wireshark.png)
+
+Lalu pada console knight, menyalakan SSH service pada port 22 dan HTTP pada port 80. dengan menggunakan srcipt `setup_ssh.sh`:
+```
+#!/bin/bash
+
+apk update
+apk add openssh busybox-extras
+ssh-keygen -A
+/usr/sbin/sshd
+httpd -p 80
+```
+![berhasil setup ssh dan http pada node Knights](src/soal_12-setup-ssh-completed.png)
+
+Setelah itu, pindah ke console Alice. menggunakan `nc` dengan parameter `-vz` untuk mengecek status port dari node Knights.
+- Pindai SSH : `nc -vz 192.218.3.2 22`
+- Pindai HTTP : `nc -vz 192.218.3.2 80`
+- Pindai Secret Port : `nc -vz 192.218.3.2 7777`
+
+![hasil scan port](src/soal_12-hasil-pindai.png)
+
+Disini udah benar, dengan keterangan port 22 dan 80 terbuka sedangkan port 7777 tertutup. Lalu melakukan analisis di wiresark khusus pada port 7777, buka bagian `Transmission Control Protocol` dan akan menemukan flag bernilai `0x014`
+
+![Hasil flag port 7777](src/soal_12-flags.png)
+
+### Soal 13 - Satrio
+> Lain memerintahkan agar administrasi jarak jauh menggunakan SSH secara aman tanpa password. Install OpenSSH server pada node Knights, buat pasangan kunci SSH (ssh-keygen) pada node Mika untuk user mika_admin, dan konfigurasikan public key authentication (PasswordAuthentication no). Lakukan koneksi SSH dari node Mika ke node Knights, tangkap sesi menggunakan Wireshark, identifikasi paket Protocol Version Exchange dan Key Exchange, serta jelaskan mengapa kredensial tidak terlihat dalam bentuk teks terbuka seperti pada Telnet.
+
+Menginstall SSH di node Knights, membuat user `mika_admin` dengan password sementara, menyalakan servicenya. dengan menggunakan:
+```
+#!/bin/bash
+
+apk update
+apk add openssh
+
+adduser -D mika_admin
+echo "mika_admin:rahasia" | chpasswd
+
+ssh-keygen -A
+/usr/sbin/sshd
+```
+
+Lalu pindah ke node Mika, membuat user yang sama, generate kuncinya, lalu kirim public keynya ke Knights:
+```
+apk update
+apk add openssh
+```
+```
+adduser -D mika_admin
+su - mika_admin
+```
+```
+ssh-keygen -t rsa
+```
+```
+ssh-copy-id mika_admin@192.218.3.2
+```
+
+Lalu kembali ke node Knights, Karena kunci sudah ditransfer,  mematikan fitur login pakai password agar hanya yang punya kunci (Mika) yang bisa masuk.
+```
+echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
+
+killall sshd
+/usr/sbin/sshd
+```
+
+Start capture pada jalur node Mika. lalu melakukan filter `ssh`
+![filter ssh](src/soal_13-filter-ssh.png)
+
+Kembali ke node Mika dan pastikan masi login dengan akun `mika_admin`. lalu mengoneksikan ssh ke knights:
+```
+ssh mika_admin@192.218.3.2
+```
+
+Dan berhasil masuk ke akun Knights dalam console Mika tanpa password.
+![berhasil login ke KNights](src/soal_13-login-ke-knights.png)
+
+Hasil dari capture wireshark:
+![hasil capture](src/soal_13-hasil-capture.png)
+
+Buka hasil dari paket yang bernama `Client: Protocol` dan menemukan protocol SSH-2.0-OpenSSH_10.2:
+![ssh protocol](src/soal_13-ssh-protocol.png)
+
+Lalu, buka `Client: Key Exchange Init` dan akan menemukan algoritma enkripsi yang digunakan
+![algoritma enkripsi yang digunakan](src/soal_13-encrypt-algoritm.png)
+
+Mengapa kredensial tidak terlihat seperti Telnet?
+Setelah proses Key Exchange selesai, klien dan server sepakat membuat sebuah "Kunci Sesi" (Session Key). Mulai titik itu, seluruh komunikasi selanjutnya dibungkus dan diacak menggunakan kriptografi yang kuat. Proses Mika memberikan Public Key-nya untuk otentikasi terjadi di dalam lorong yang sudah terenkripsi tersebut. Di Wireshark, ini hanya akan terlihat sebagai paket bertuliskan `Encrypted packet`, sehingga password atau kunci tidak akan pernah bocor sebagai plain text.
