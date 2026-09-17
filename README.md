@@ -375,3 +375,152 @@ Lalu, buka `Client: Key Exchange Init` dan akan menemukan algoritma enkripsi yan
 
 Mengapa kredensial tidak terlihat seperti Telnet?
 Setelah proses Key Exchange selesai, klien dan server sepakat membuat sebuah "Kunci Sesi" (Session Key). Mulai titik itu, seluruh komunikasi selanjutnya dibungkus dan diacak menggunakan kriptografi yang kuat. Proses Mika memberikan Public Key-nya untuk otentikasi terjadi di dalam lorong yang sudah terenkripsi tersebut. Di Wireshark, ini hanya akan terlihat sebagai paket bertuliskan `Encrypted packet`, sehingga password atau kunci tidak akan pernah bocor sebagai plain text.
+
+### Soal 14 - Bastian
+> Setelah gagal mengakses FTP, Eiri melancarkan serangan brute-force terhadap form login web Alice. Analisis file capture `wired_bruteforce.pcapng` untuk mengidentifikasi alamat IP penyerang, target IP beserta port yang diserang, password user `lain_admin` yang berhasil ditembus, serta web server software dan versi yang dilaporkan pada response header.
+
+**Penemuan dan Analisis:**
+Analisis dilakukan dengan menggunakan Wireshark untuk menelusuri aktivitas *brute-force* yang terekam pada lalu lintas jaringan.
+*   **Sebelum filter:** Menampilkan seluruh *traffic* yang tertangkap oleh sistem.
+    ![Traffic Wireshark sebelum disaring](src/soal_14-sebelum-filter.png)
+*   **Setelah filter:** Dengan menerapkan *display filter* khusus protokol HTTP, terlihat jelas bahwa seluruh upaya akses tidak sah (*Unauthorized*) berasal dari satu alamat IP, yaitu **172.26.7.50**, yang berulang kali mengincar alamat IP target **172.26.7.100**.
+    ![Traffic Wireshark HTTP filter](src/soal_14-setelah-filter.png)
+*   Berdasarkan penelusuran pada *HTTP Response*, target layanan yang diserang beroperasi pada **Port 8080**. Web server yang digunakan oleh mesin target (Alice) teridentifikasi dari *response header* sebagai **Apache/2.4.62**.
+    ![Identifikasi versi Web Server Apache](src/soal_14-server.png)
+*   Melalui inspeksi *payload* pada bagian *HTML Form URL Encoded*, terungkap bahwa penyerang mencoba meretas akun dengan *username* `lain_admin`. *Password* yang akhirnya berhasil menembus autentikasi adalah **`wired_pr0tocol_7`**.
+    ![Kredensial penyerang pada HTML Form](src/soal_14-credential.png)
+
+**Verifikasi Socket Server:**
+Berdasarkan temuan di atas, validasi pada *socket server* berhasil dan menghasilkan bendera (*flag*) berikut:
+![Validasi Flag Soal 14](src/soal_14-flag-ans.png)
+
+**Flag:** `KOMJAR26{W1r3d_Brut3_yoBKOESRX44AgWx3NNk40VUOT}`
+
+---
+
+### Soal 15 - Bastian
+> Eiri menyusup ke ruang server dan memasang perangkat keyboard USB berbahaya pada node Alice. Buka file capture `wired_usb_hid.pcap`, identifikasi Vendor ID dan Product ID perangkat USB dari deskriptor USB, alamat nomor device USB, serta pesan rahasia yang berhasil dicuri dari keystroke.
+
+**Penemuan dan Analisis:**
+*   Awal pembukaan *file capture* menunjukkan interaksi protokol USB secara keseluruhan pada saat perangkat dicolokkan.
+    ![Traffic Wireshark USB awal](src/soal_15-no-filter.png)
+*   Dengan mengaplikasikan filter `usb.idVendor && usb.idProduct`, *Device Descriptor* dari perangkat USB berbahaya tersebut dapat diidentifikasi secara spesifik.
+    ![Filter Descriptor USB](src/soal_15-after-filter.png)
+*   Berdasarkan deskriptor tersebut, perangkat memiliki **Vendor ID:** `0x046d` (Logitech, Inc.) dan **Product ID:** `0xc31c` (Keyboard K120).
+    ![Device Descriptor IDVendor dan IDProduct](src/soal_15-idvendor-idproduct.png)
+*   Pada fase inisiasi awal (*enumeration*), perangkat tersebut terbaca menggunakan **Device Address 0** secara sementara.
+    ![USB URB dengan Device Address 0](src/soal_15-address0.png)
+*   Namun, saat perangkat mulai secara aktif mengirimkan data *keystroke* berbahaya ke komputer, alamat perangkat yang ditugaskan (*assigned*) dan terekam pada log adalah **Device Address 7**.
+    ![USB URB dengan Device Address 7](src/soal_15-address7.png)
+*   Kumpulan *hex scan codes* dari *keystroke* yang dicuri adalah: `1a 00 0c 00 15 00 08 00 07 00 2d 00 13 00 15 00 12 00 17 00 12 00 06 00 12 00 0f 00 2d 00 24 00 2d 00 0c 00 16 00 2d 00 04 00 0f 00 0c 00 19 00 08 00 2d 00 1f 00 27 00 1f 00 23 00`. Setelah dikonversi menjadi teks ASCII, pesan rahasia tersebut berbunyi: **`wired-protocol-7-is-alive-2026`**.
+
+**Verifikasi Socket Server:**
+![Validasi Flag Soal 15](src/soal_15-flag-ans.png)
+
+**Flag:** `KOMJAR26{USB_K3ystr0k3_SvPt4ZhSFAabWEF5ba33B7xYI}`
+
+---
+
+### Soal 16 - FTP Credential Theft
+> Eiri meletakkan file malware di server. Dari file capture `wired_ftp_theft.pcap`, lakukan analisis lalu lintas FTP untuk mengidentifikasi alamat IP server FTP penyerang, banner software FTP yang digunakan, kredensial login penyerang, serta ukuran (size in bytes) dari file malware `knights_payload.exe` yang diunduh.
+
+**Penemuan dan Analisis:**
+*   Melalui penyaringan aktivitas FTP, diidentifikasi bahwa server FTP penyerang yang mendistribusikan *malware* beroperasi pada alamat IP **198.51.100.7**.
+    ![IP Server FTP Penyerang](src/soal_16-ip-attk.png)
+*   Berdasarkan balasan *header* saat koneksi FTP diinisiasi, *software banner* yang digunakan oleh server penyerang secara eksplisit tertulis sebagai **`vsftpd 3.0.5`**.
+    ![Banner Software vsftpd](src/soal_16-banner-software.png)
+*   Dari rekaman lalu lintas jaringan yang tidak terenkripsi, kredensial yang digunakan oleh penyerang untuk melakukan otentikasi adalah *username* **`knights_agent`** dan *password* **`N4v1_s3cur3_2026`**.
+    ![Kredensial Login Penyerang](src/soal_16-creds.png)
+*   Penyerang mengunduh *file malware* bernama `knights_payload.exe`. Dari negosiasi perintah data biner, server menginformasikan bahwa ukuran pasti *file* tersebut adalah **524288 bytes**.
+    ![Ukuran File Malware](src/soal_16-size.png)
+
+**Verifikasi Socket Server:**
+![Validasi Flag Soal 16](src/soal_16-flag-ans.png)
+
+**Flag:** `KOMJAR26{FTP_Th3ft_yO8WYqvrqETNqiryMLSs34qei}`
+
+---
+
+### Soal 17 - HTTP Malware Retrieval
+> Alice membuat halaman web di node-nya. Eiri memanfaatkan celah untuk mengunduh payload berbahaya ke sistem Alice. Analisis file capture `wired_http_c2.pcap` untuk mengidentifikasi nama domain (Host) tempat malware diunduh, alamat IP server penyerang, nama file executable malware yang diunduh, serta kode status HTTP yang dikembalikan.
+
+**Penemuan dan Analisis:**
+*   Berdasarkan analisis pada *HTTP Request* yang terekam, diidentifikasi bahwa *file malware* diunduh dari sebuah nama domain (Host) mencurigakan, yakni **`wired-update.net`**.
+    ![Host Domain dan User Agent](src/soal_17-host-domain.png)
+*   *File executable malware* yang ditarik oleh sistem korban dari domain tersebut bernama **`navi_agent.exe`**.
+    ![Request URI Malware](src/soal_17-malware.png)
+*   Aktivitas pengunduhan *malware* ini bersumber dari server *Command & Control* (C2) penyerang yang memiliki alamat IP **203.0.113.42**.
+*   Server penyerang merespons permintaan unduhan tersebut dengan memberikan *HTTP Status Code* **200 (OK)**, yang menandakan bahwa pengiriman *payload* berbahaya telah berhasil diselesaikan secara utuh.
+    ![HTTP Status Code 200](src/soal_17-status.png)
+
+**Verifikasi Socket Server:**
+![Validasi Flag Soal 17](src/soal_17-flag-ans.png)
+
+**Flag:** `KOMJAR26{Navi_C2_D0wnl04d_PcG0wzTqA9wuPXGGsFOr8AZ4l}`
+
+---
+
+### Soal 18 - SMB Lateral Transfer
+> Eiri mengubah taktik penyerangan dengan menanamkan file malware menggunakan protokol file sharing SMB. Analisis file capture `wired_smb_transfer.pcapng` untuk mengidentifikasi nama protokol jaringan yang dieksploitasi, IP pengirim dan penerima, folder tujuan penyimpanan malware pada sistem korban, serta nama file executable malware yang ditransfer.
+
+**Penemuan dan Analisis:**
+Berdasarkan tinjauan detail pada paket jaringan `wired_smb_transfer.pcapng`, pergerakan lateral (*lateral movement*) berhasil diidentifikasi:
+![Analisis Transfer SMB secara Keseluruhan](src/soal_18-overall.png)
+
+*   **Protokol Jaringan:** Penyerang mengeksploitasi protokol file sharing **SMB2** (hal ini terlihat jelas dari dominasi paket yang ditandai dengan perintah *Request* dan *Response* SMB2 pada Wireshark).
+*   **IP Pengirim (Attacker):** Alamat IP penyerang yang menginisiasi *Create Request* dan mentransmisikan *malware* secara aktif adalah **10.7.3.100**.
+*   **IP Penerima (Korban):** Server korban yang merespons paket (menerima proses penulisan *malware*) memiliki alamat IP **10.7.1.50**.
+*   **Folder Tujuan:** *Malware* tersebut ditanamkan pada *path directory/share tree* jaringan administratif, tepatnya di **`\\10.7.1.50\ADMIN$`** pada sistem korban.
+*   **Nama File Malware:** Berdasarkan paket data yang disisipkan, *file executable* berbahaya yang diselundupkan bernama **`wired_trojan_payload.exe`**.
+
+**Verifikasi Socket Server:**
+![Validasi Flag Soal 18](src/soal_18-flag-ans.png)
+
+**Flag:** `KOMJAR26{SMB_Tr4nsf3r_3Kght1LMJhC3gpMDHoRdxbP3S}`
+
+---
+
+### Soal 19 - SMTP Threat Inspection
+> Eiri meneror jaringan dengan mengirimkan email pemerasan melalui protokol SMTP tanpa enkripsi. Analisis file capture `wired_smtp_threat.pcap` pada stream TCP terkait, identifikasi alamat email korban yang ditargetkan, password korban yang diklaim bocor oleh penyerang, jenis malware yang diinfeksikan, batas waktu (dalam hari) yang diberikan, serta MailClientID yang tercantum pada pesan.
+
+**Penemuan dan Analisis:**
+Dengan menyimak aliran SMTP (*Follow TCP Stream*) dari file `wired_smtp_threat.pcap`, struktur komunikasi dan konten *email* pemerasan berhasil direkonstruksi sepenuhnya.
+![Aliran Stream TCP/SMTP](src/soal_19-stream.png)
+
+*   **Alamat Email Korban:** Berdasarkan *Internet Message Format* pada *header* "To:", surel ancaman tersebut ditujukan ke alamat **`victim@protocol7.co.jp`** (meskipun *routing* jaringan sempat melibatkan *node* internal `chisa@internal.wired` dan `mika@internal.wired`).
+    ![Header Email Format](src/soal_19-header-victim.png)
+*   **Password yang Bocor:** Dalam isi teks surel (*Line-based text data*), penyerang secara eksplisit mengklaim telah mengantongi *password* milik korban, yaitu **`pr0tocol_7_user`**.
+*   **Jenis Malware:** Penyerang menakut-nakuti korban dengan menyatakan telah menginfeksi sistem menggunakan *malware* jenis **`ransomware`**.
+    ![Konten Email Ancaman Bagian Atas](src/soal_19-pass-detected.png)
+*   **Batas Waktu (Deadline):** Penyerang memberikan tenggat waktu yang ketat untuk pembayaran tebusan Bitcoin, yakni selama 72 jam atau **3** hari.
+*   **MailClientID:** Pada baris paling akhir surel tersebut, terdapat penanda identifikasi pelacakan *MailClientID* yang bernilai **`7719980706`**.
+    ![Konten Email Tenggat Waktu dan Client ID](src/soal_19-mail-and-time.png)
+
+**Verifikasi Socket Server:**
+![Validasi Flag Soal 19](src/soal_19-flag-ans.png)
+
+**Flag:** `KOMJAR26{SMTP_Ext0rt10n_Eq3TuRULpx1Mj5iq3mmAr2u8D}`
+
+---
+
+### Soal 20 - TLS Decrypted Stream
+> Untuk rencana pamungkasnya, Eiri menyembunyikan komunikasi malware di balik saluran terenkripsi TLS. Namun Alice telah menyediakan file keylog untuk mendekripsi lalu lintas data tersebut. Analisis file capture `wired_tls_decrypt.pcapng` bersama `keyslogfile.txt` untuk mengidentifikasi versi protokol TLS yang dinegosiasikan, nama domain (SNI) yang diakses, alamat IP server HTTPS penyerang, User-Agent yang digunakan, serta HTTP request method dan path yang tersembunyi di dalam sesi dekripsi.
+
+**Penemuan dan Analisis:**
+Setelah mengintegrasikan *file keylog* ke dalam pengaturan protokol TLS di Wireshark, lapisan enkripsi terbuka sehingga muatan data asli (*Application Data*) berhasil dibongkar.
+![Dekripsi Stream TLS](src/soal_20-stream.png)
+
+*   **Versi Protokol TLS:** Pertukaran pesan *Handshake* antara klien dan server menyepakati penggunaan protokol enkripsi **TLSv1.2**.
+    ![Negosiasi Versi TLS Client Hello](src/soal_20-tls-version.png)
+*   **Nama Domain (SNI):** Dari ekstensi `server_name` pada pesan *Client Hello*, diketahui bahwa klien secara spesifik memanggil domain **`example.com`**.
+    ![Domain SNI example.com](src/soal_20-domain-name.png)
+*   **IP Server HTTPS Penyerang:** Klien internal (IP `10.9.0.2`) membangun komunikasi dan mengirimkan kunci enkripsi ke *server* HTTPS eksternal yang beralamat IP **93.184.216.34**.
+*   **User-Agent:** Dari sesi lalu lintas HTTP yang berhasil didekripsi, klien terbukti tidak menggunakan *browser* biasa, melainkan program berbasis *command line*, yakni dengan *User-Agent string* **`curl/7.62.0`**.
+*   **HTTP Request Method & Path:** Di dalam saluran aman tersebut, terselip komunikasi tersembunyi yang melakukan pemanggilan ke server menggunakan metode HTTP **`HEAD`** menuju root direktori atau *path* **`/`** (diinterpretasikan utuh sebagai *HEAD / HTTP/1.1*).
+    ![HTTP Method, Path, dan User Agent](src/soal_20-user-agent-and-http-method.png)
+    ![HTTP Response 200 hasil dekripsi](src/soal_20-200.png)
+
+**Verifikasi Socket Server:**
+![Validasi Flag Soal 20](src/soal_20-flag-ans.png)
+
+**Flag:** `KOMJAR26{TLS_D3crypt_Se2jnbyc2vVM3cWStxr07lPMF}`
