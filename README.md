@@ -421,7 +421,7 @@ Berdasarkan temuan di atas, validasi pada *socket server* berhasil dan menghasil
 
 ---
 
-### Soal 16 - FTP Credential Theft
+### Soal 16 - Bastian
 > Eiri meletakkan file malware di server. Dari file capture `wired_ftp_theft.pcap`, lakukan analisis lalu lintas FTP untuk mengidentifikasi alamat IP server FTP penyerang, banner software FTP yang digunakan, kredensial login penyerang, serta ukuran (size in bytes) dari file malware `knights_payload.exe` yang diunduh.
 
 **Penemuan dan Analisis:**
@@ -441,7 +441,7 @@ Berdasarkan temuan di atas, validasi pada *socket server* berhasil dan menghasil
 
 ---
 
-### Soal 17 - HTTP Malware Retrieval
+### Soal 17 - Bastian
 > Alice membuat halaman web di node-nya. Eiri memanfaatkan celah untuk mengunduh payload berbahaya ke sistem Alice. Analisis file capture `wired_http_c2.pcap` untuk mengidentifikasi nama domain (Host) tempat malware diunduh, alamat IP server penyerang, nama file executable malware yang diunduh, serta kode status HTTP yang dikembalikan.
 
 **Penemuan dan Analisis:**
@@ -460,7 +460,7 @@ Berdasarkan temuan di atas, validasi pada *socket server* berhasil dan menghasil
 
 ---
 
-### Soal 18 - SMB Lateral Transfer
+### Soal 18 - Bastian
 > Eiri mengubah taktik penyerangan dengan menanamkan file malware menggunakan protokol file sharing SMB. Analisis file capture `wired_smb_transfer.pcapng` untuk mengidentifikasi nama protokol jaringan yang dieksploitasi, IP pengirim dan penerima, folder tujuan penyimpanan malware pada sistem korban, serta nama file executable malware yang ditransfer.
 
 **Penemuan dan Analisis:**
@@ -480,7 +480,7 @@ Berdasarkan tinjauan detail pada paket jaringan `wired_smb_transfer.pcapng`, per
 
 ---
 
-### Soal 19 - SMTP Threat Inspection
+### Soal 19 - Bastian
 > Eiri meneror jaringan dengan mengirimkan email pemerasan melalui protokol SMTP tanpa enkripsi. Analisis file capture `wired_smtp_threat.pcap` pada stream TCP terkait, identifikasi alamat email korban yang ditargetkan, password korban yang diklaim bocor oleh penyerang, jenis malware yang diinfeksikan, batas waktu (dalam hari) yang diberikan, serta MailClientID yang tercantum pada pesan.
 
 **Penemuan dan Analisis:**
@@ -503,7 +503,7 @@ Dengan menyimak aliran SMTP (*Follow TCP Stream*) dari file `wired_smtp_threat.p
 
 ---
 
-### Soal 20 - TLS Decrypted Stream
+### Soal 20 - Bastian
 > Untuk rencana pamungkasnya, Eiri menyembunyikan komunikasi malware di balik saluran terenkripsi TLS. Namun Alice telah menyediakan file keylog untuk mendekripsi lalu lintas data tersebut. Analisis file capture `wired_tls_decrypt.pcapng` bersama `keyslogfile.txt` untuk mengidentifikasi versi protokol TLS yang dinegosiasikan, nama domain (SNI) yang diakses, alamat IP server HTTPS penyerang, User-Agent yang digunakan, serta HTTP request method dan path yang tersembunyi di dalam sesi dekripsi.
 
 **Penemuan dan Analisis:**
